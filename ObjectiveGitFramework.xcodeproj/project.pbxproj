@@ -1888,7 +1888,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 10.7;
 				OTHER_CFLAGS = (
-					"$(inherited)",
+					"-fsanitize-undefined-trap-on-error",
 					"-DGIT_SSH",
 				);
 				PUBLIC_HEADERS_FOLDER_PATH = include/ObjectiveGit;
