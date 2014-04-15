@@ -54,7 +54,7 @@ NSString *const GTRepositoryCloneOptionsCheckout = @"GTRepositoryCloneOptionsChe
 NSString *const GTRepositoryCloneOptionsTransportFlags = @"GTRepositoryCloneOptionsTransportFlags";
 NSString *const GTRepositoryCloneOptionsCredentialProvider = @"GTRepositoryCloneOptionsCredentialProvider";
 
-typedef void (^GTRepositorySubmoduleEnumerationBlock)(GTSubmodule *submodule, BOOL *stop);
+typedef void (^GTRepositorySubmoduleEnumerationBlock)(GTSubmodule *submodule, NSError *error, BOOL *stop);
 typedef void (^GTRepositoryTagEnumerationBlock)(GTTag *tag, BOOL *stop);
 
 // Used as a payload for submodule enumeration.
@@ -198,7 +198,7 @@ struct GTClonePayload {
 	BOOL withCheckout = (checkout == nil ? YES : checkout.boolValue);
 
 	if (withCheckout) {
-		git_checkout_opts checkoutOptions = GIT_CHECKOUT_OPTS_INIT;
+		git_checkout_options checkoutOptions = GIT_CHECKOUT_OPTIONS_INIT;
 		checkoutOptions.checkout_strategy = GIT_CHECKOUT_SAFE_CREATE;
 		checkoutOptions.progress_cb = checkoutProgressCallback;
 		checkoutOptions.progress_payload = (__bridge void *)checkoutProgressBlock;
@@ -523,17 +523,6 @@ static int GTRepositoryForeachTagCallback(const char *name, git_oid *oid, void *
 	return (BOOL)git_repository_head_unborn(self.git_repository);
 }
 
-- (BOOL)resetToCommit:(GTCommit *)commit withResetType:(GTRepositoryResetType)resetType error:(NSError **)error {
-    NSParameterAssert(commit != nil);
-
-    int result = git_reset(self.git_repository, commit.git_object, (git_reset_t)resetType, (git_signature *)[self userSignatureForNow].git_signature, NULL);
-    if (result == GIT_OK) return YES;
-
-    if (error != NULL) *error = [NSError git_errorFor:result description:@"Failed to reset repository to commit %@.", commit.SHA];
-
-    return NO;
-}
-
 - (NSString *)preparedMessageWithError:(NSError **)error {
 	void (^setErrorFromCode)(int) = ^(int errorCode) {
 		if (errorCode == 0 || errorCode == GIT_ENOTFOUND) {
@@ -606,10 +595,12 @@ static int GTRepositoryForeachTagCallback(const char *name, git_oid *oid, void *
 static int submoduleEnumerationCallback(git_submodule *git_submodule, const char *name, void *payload) {
 	GTRepositorySubmoduleEnumerationInfo *info = payload;
 
-	GTSubmodule *submodule = [[GTSubmodule alloc] initWithGitSubmodule:git_submodule parentRepository:info->parentRepository];
+	NSError *error;
+	// Use -submoduleWithName:error: so that we get a git_submodule that we own.
+	GTSubmodule *submodule = [info->parentRepository submoduleWithName:@(name) error:&error];
 
 	BOOL stop = NO;
-	info->block(submodule, &stop);
+	info->block(submodule, error, &stop);
 	if (stop) return 1;
 
 	if (info->recursive) {
@@ -620,7 +611,7 @@ static int submoduleEnumerationCallback(git_submodule *git_submodule, const char
 }
 
 - (BOOL)reloadSubmodules:(NSError **)error {
-	int gitError = git_submodule_reload_all(self.git_repository);
+	int gitError = git_submodule_reload_all(self.git_repository, 0);
 	if (gitError != GIT_OK) {
 		if (error != NULL) *error = [NSError git_errorFor:gitError description:@"Failed to reload submodules."];
 		return NO;
@@ -629,7 +620,7 @@ static int submoduleEnumerationCallback(git_submodule *git_submodule, const char
 	return YES;
 }
 
-- (void)enumerateSubmodulesRecursively:(BOOL)recursive usingBlock:(void (^)(GTSubmodule *submodule, BOOL *stop))block {
+- (void)enumerateSubmodulesRecursively:(BOOL)recursive usingBlock:(void (^)(GTSubmodule *submodule, NSError *error, BOOL *stop))block {
 	NSParameterAssert(block != nil);
 
 	// Enumeration is synchronous, so it's okay for the objects here to be
@@ -661,7 +652,7 @@ static int submoduleEnumerationCallback(git_submodule *git_submodule, const char
 - (GTSignature *)userSignatureForNow {
 	GTConfiguration *configuration = [self configurationWithError:NULL];
 	NSString *name = [configuration stringForKey:@"user.name"];
-	if (name == nil) {
+	if (name.length == 0) {
 		name = NSFullUserName();
 		if (name.length == 0) name = NSUserName();
 		if (name.length == 0) name = @"nobody";
@@ -752,7 +743,7 @@ static int checkoutNotifyCallback(git_checkout_notify_t why, const char *path, c
 
 - (BOOL)performCheckoutWithStrategy:(GTCheckoutStrategyType)strategy notifyFlags:(GTCheckoutNotifyFlags)notifyFlags error:(NSError **)error progressBlock:(GTCheckoutProgressBlock)progressBlock notifyBlock:(GTCheckoutNotifyBlock)notifyBlock {
 	
-	git_checkout_opts checkoutOptions = GIT_CHECKOUT_OPTS_INIT;
+	git_checkout_options checkoutOptions = GIT_CHECKOUT_OPTIONS_INIT;
 	
 	checkoutOptions.checkout_strategy = strategy;
 	checkoutOptions.progress_cb = checkoutProgressCallback;
