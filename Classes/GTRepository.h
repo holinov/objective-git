@@ -44,12 +44,6 @@
 @class GTTag;
 @class GTTree;
 
-typedef enum {
-	GTRepositoryResetTypeSoft = GIT_RESET_SOFT,
-	GTRepositoryResetTypeMixed = GIT_RESET_MIXED,
-	GTRepositoryResetTypeHard = GIT_RESET_HARD
-} GTRepositoryResetType;
-
 // Checkout strategies used by the various -checkout... methods
 // See git_checkout_strategy_t
 typedef enum {
@@ -274,15 +268,6 @@ extern NSString *const GTRepositoryCloneOptionsCredentialProvider;
 // returns the local commits, an empty array if there is no remote branch, or nil if an error occurred
 - (NSArray *)localCommitsRelativeToRemoteBranch:(GTBranch *)remoteBranch error:(NSError **)error;
 
-// Reset the repository's HEAD to the given commit.
-//
-// commit - the commit the HEAD is to be reset to. Must not be nil.
-// resetType - The type of reset to be used.
-// error(out) - in the event of an error this may be set.
-//
-// Returns `YES` if successful, `NO` if not.
-- (BOOL)resetToCommit:(GTCommit *)commit withResetType:(GTRepositoryResetType)resetType error:(NSError **)error;
-
 // Retrieves git's "prepared message" for the next commit, like the default
 // message pre-filled when committing after a conflicting merge.
 //
@@ -312,10 +297,12 @@ extern NSString *const GTRepositoryCloneOptionsCredentialProvider;
 // Enumerates over all the tracked submodules in the repository.
 //
 // recursive - Whether to recurse into nested submodules, depth-first.
-// block     - A block to execute for each `submodule` found. Setting `stop` to
-//             YES will cause enumeration to stop after the block returns. This
-//             must not be nil.
-- (void)enumerateSubmodulesRecursively:(BOOL)recursive usingBlock:(void (^)(GTSubmodule *submodule, BOOL *stop))block;
+// block     - A block to execute for each `submodule` found. If an error
+//             occurred while reading the submodule, `submodule` will be nil and
+//             `error` will contain the error information. Setting `stop` to YES
+//             will cause enumeration to stop after the block returns. This must
+//             not be nil.
+- (void)enumerateSubmodulesRecursively:(BOOL)recursive usingBlock:(void (^)(GTSubmodule *submodule, NSError *error, BOOL *stop))block;
 
 // Looks up the top-level submodule with the given name. This will not recurse
 // into submodule repositories.
