@@ -65,7 +65,8 @@
 	NSParameterAssert(block != nil);
 
 	for (NSUInteger idx = 0; idx < self.hunkCount; idx ++) {
-		GTDiffHunk *hunk = [[GTDiffHunk alloc] initWithPatch:self hunkIndex:idx];
+		GTDiffHunk *hunk = [[GTDiffHunk alloc] initWithDelta:_delta hunkIndex:idx];
+		//[[GTDiffHunk alloc] initWithPatch:self hunkIndex:idx];
 		if (hunk == nil) return NO;
 
 		BOOL shouldStop = NO;

@@ -106,7 +106,7 @@
 #pragma mark Manipulation
 
 - (BOOL)reload:(NSError **)error {
-	int gitError = git_submodule_reload(self.git_submodule, 0);
+	int gitError = git_submodule_reload(self.git_submodule,0);
 	if (gitError != GIT_OK) {
 		if (error != NULL) *error = [NSError git_errorFor:gitError description:@"Failed to reload submodule %@.", self.name];
 		return NO;
